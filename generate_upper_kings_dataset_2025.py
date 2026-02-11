@@ -13,14 +13,14 @@ from harmonized_landsat_sentinel import generate_HLS_timeseries
 logging.basicConfig(level=logging.INFO, format='%(name)s - %(levelname)s - %(message)s')
 
 # Date range
-start_date_UTC = "2022-08-01"
-end_date_UTC = "2025-11-20"
+start_date_UTC = "2025-01-01"
+end_date_UTC = "2025-12-31"
 
 # Download directory
 download_directory = "~/data/HLS_download"
 
 # Output directory
-output_directory = "~/data/Kings Canyon HLS 2023"
+output_directory = "~/data/Kings Canyon HLS"
 
 # Upper Kings area of interest
 gdf = gpd.read_file("upper_kings.kml")
