@@ -39,6 +39,7 @@ filenames = generate_HLS_timeseries(
     end_date_UTC=end_date_UTC,
     geometry=grid,
     download_directory=download_directory,
-    output_directory=output_directory
+    output_directory=output_directory,
+    source="both"
 )
 
