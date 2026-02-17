@@ -7,8 +7,8 @@ from datetime import date
 # Import path manipulation utilities
 from os.path import join, expanduser, dirname
 from os import makedirs
-# Import RasterGeometry class for handling geospatial raster operations
-from rasters import RasterGeometry
+# Import RasterGeometry and BBox for handling geospatial operations
+from rasters import RasterGeometry, BBox
 # Import rasters module with alias for mosaic operations
 import rasters as rt
 
@@ -23,7 +23,7 @@ def process_sensor_mosaic(
     tiles: List[str],
     tile_sensor_dates: dict,
     HLS,
-    geometry: RasterGeometry,
+    geometry: RasterGeometry | BBox,
     output_directory: str
 ) -> Optional[str]:
     """
@@ -37,7 +37,7 @@ def process_sensor_mosaic(
         tiles (List[str]): List of tile identifiers
         tile_sensor_dates (dict): Dictionary mapping tiles to available dates per sensor
         HLS: HLS connection object
-        geometry (RasterGeometry): Geographic area of interest
+        geometry (RasterGeometry | BBox): Geographic area of interest
         output_directory (str): Directory to save output files
     
     Returns:
@@ -86,8 +86,17 @@ def process_sensor_mosaic(
     )
     
     try:
+        mosaic_geometry = geometry
+        if isinstance(geometry, BBox):
+            target_bbox = geometry.to_crs(images[0].geometry.crs)
+            mosaic_geometry = rt.RasterGrid.from_bbox(
+                bbox=target_bbox,
+                cell_size=images[0].geometry.cell_size,
+                crs=images[0].geometry.crs
+            )
+
         # Create a mosaic from all collected images, cropped to the specified geometry
-        composite = rt.mosaic(images, geometry=geometry)
+        composite = rt.mosaic(images, geometry=mosaic_geometry)
         
         # Ensure output directory exists before writing
         directory = dirname(expanduser(filename))

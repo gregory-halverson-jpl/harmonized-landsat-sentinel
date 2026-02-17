@@ -12,8 +12,8 @@ from datetime import date, datetime
 from dateutil import parser
 # Import sentinel_tiles for mapping geometries to Sentinel-2 tile identifiers
 from sentinel_tiles import sentinel_tiles
-# Import RasterGeometry class for handling geospatial raster operations
-from rasters import RasterGeometry
+# Import RasterGeometry and BBox for handling geospatial operations
+from rasters import RasterGeometry, BBox
 # Import rasters module with alias for mosaic operations
 import rasters as rt
 # Import the process_sensor_mosaic function for handling multi-tile sensor mosaics
@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 def generate_HLS_timeseries(
     bands: Optional[Union[List[str], str]] = None,              # Spectral band(s) to retrieve (single string or list)
     tiles: Optional[Union[List[str], str]] = None,              # HLS tile identifier(s) (e.g., "10SEG")
-    geometry: Optional[RasterGeometry] = None,                  # Geographic area of interest for automatic tile selection
+    geometry: Optional[Union[RasterGeometry, BBox]] = None,      # Geographic area of interest for automatic tile selection
     start_date_UTC: Optional[Union[str, date]] = None,          # Starting date for timeseries (string or date object)
     end_date_UTC: Optional[Union[str, date]] = None,            # Ending date for timeseries (string or date object)
     download_directory: Optional[str] = None,                   # Directory for caching downloaded HLS data
@@ -57,7 +57,9 @@ def generate_HLS_timeseries(
     Args:
         bands (Optional[Union[List[str], str]]): Spectral band(s) to retrieve (single string or list).
         tiles (Optional[Union[List[str], str]]): HLS tile identifier(s) (e.g., "10SEG" or ["10SEG", "10TEL"]).
-        geometry (Optional[RasterGeometry]): Geographic area of interest for automatic tile selection.
+        geometry (Optional[Union[RasterGeometry, BBox]]): Geographic area of interest for automatic tile selection.
+            - RasterGeometry: Uses the grid resolution for resampling.
+            - BBox: Preserves native resolution by building a grid from image cell size.
         start_date_UTC (Optional[Union[str, date]]): Start date as YYYY-MM-DD string or date object.
         end_date_UTC (Optional[Union[str, date]]): End date as YYYY-MM-DD string or date object.
         download_directory (Optional[str]): Directory to save or read data.
@@ -107,7 +109,10 @@ def generate_HLS_timeseries(
     if tiles is None and geometry is not None:
         # Automatically determine which Sentinel-2 tiles cover the geometry
         # This converts the geometry boundary to lat/lon and finds intersecting tiles
-        tiles = sentinel_tiles.tiles(target_geometry=geometry.boundary_latlon.geometry)
+        if isinstance(geometry, BBox):
+            tiles = sentinel_tiles.tiles(target_geometry=geometry.latlon.polygon.geometry)
+        else:
+            tiles = sentinel_tiles.tiles(target_geometry=geometry.boundary_latlon.geometry)
 
     # Handle case where tiles might still be None after geometry processing
     if tiles is None:
@@ -267,7 +272,15 @@ def generate_HLS_timeseries(
                             band_output_dir,
                             f"HLS_{band}_{d_parsed.strftime('%Y%m%d')}.tif"
                         )
-                        composite = rt.mosaic(images, geometry=geometry)
+                        mosaic_geometry = geometry
+                        if isinstance(geometry, BBox):
+                            target_bbox = geometry.to_crs(images[0].geometry.crs)
+                            mosaic_geometry = rt.RasterGrid.from_bbox(
+                                bbox=target_bbox,
+                                cell_size=images[0].geometry.cell_size,
+                                crs=images[0].geometry.crs
+                            )
+                        composite = rt.mosaic(images, geometry=mosaic_geometry)
                         
                         # Ensure output directory exists before writing
                         directory = dirname(expanduser(filename))
